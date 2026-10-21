@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -81,7 +81,7 @@
   .tip {
     position: absolute;
     z-index: 6;
-    max-width: 240px;
+    max-width: 280px;
     padding: 8px 10px;
     background: rgba(6, 14, 22, 0.94);
     border: 1px solid var(--line);
@@ -92,6 +92,7 @@
   }
   .tip b { display: block; }
   .tip span { color: var(--muted); }
+  .tip .who { color: var(--text); font-weight: 650; }
   .readout {
     position: absolute;
     top: 12px;
@@ -116,7 +117,7 @@
   h1 { margin: 0; font-size: 18px; font-weight: 650; }
   .sub { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
   .tools { display: flex; flex-direction: column; gap: 8px; padding: 0 16px 10px; }
-  input[type="search"] {
+  input[type="search"], select {
     width: 100%;
     background: #08131c;
     color: var(--text);
@@ -175,7 +176,7 @@
 </head>
 <body>
   <main class="map-panel">
-    <div class="readout" id="readout">Passe o mouse no mapa</div>
+    <div class="readout" id="readout">Hover the map</div>
     <div class="stage hide-nums" id="stage">
       <img src="map.jpg" alt="Mapa The Center" id="map" draggable="false" />
       <svg class="grid" id="grid" viewBox="0 0 1020 891" hidden></svg>
@@ -185,27 +186,31 @@
   <aside class="side">
     <header>
       <h1>Ratholes — The Center</h1>
-      <p class="sub">O primeiro número é a latitude (eixo da esquerda). O segundo é a longitude (eixo de cima).</p>
+      <p class="sub">The first number is latitude (left axis). The second is longitude (top axis).</p>
     </header>
     <div class="legend">
       <span><i class="swatch" style="background:var(--water)"></i>Underwater</span>
-      <span><i class="swatch" style="background:var(--bed)"></i>Camas ok</span>
-      <span><i class="swatch" style="background:var(--nobed)"></i>Camas não</span>
+      <span><i class="swatch" style="background:var(--bed)"></i>Beds work</span>
+      <span><i class="swatch" style="background:var(--nobed)"></i>Beds don't</span>
       <span><i class="swatch" style="background:var(--peli)"></i>Pelagornis</span>
-      <span><i class="swatch" style="background:var(--plain)"></i>Sem nota</span>
+      <span><i class="swatch" style="background:var(--plain)"></i>No note</span>
     </div>
     <div class="tools">
-      <input id="q" type="search" placeholder="Buscar número ou nome" />
+      <input id="q" type="search" placeholder="Search number, name, or owner" />
+      <select id="owner" aria-label="Owner">
+        <option value="all">All owners</option>
+      </select>
       <div class="chips" id="chips">
-        <button type="button" data-kind="all" class="on">Todos</button>
+        <button type="button" data-kind="all" class="on">All</button>
         <button type="button" data-kind="water">Underwater</button>
-        <button type="button" data-kind="bed">Camas ok</button>
-        <button type="button" data-kind="nobed">Camas não</button>
+        <button type="button" data-kind="bed">Beds work</button>
+        <button type="button" data-kind="nobed">Beds don't</button>
         <button type="button" data-kind="peli">Pelagornis</button>
-        <button type="button" data-kind="plain">Sem nota</button>
+        <button type="button" data-kind="plain">No note</button>
       </div>
-      <label class="check"><input id="nums" type="checkbox" checked /> Mostrar números</label>
-      <label class="check"><input id="show-grid" type="checkbox" /> Mostrar grade de 10</label>
+      <label class="check"><input id="approx" type="checkbox" /> Approximate coords</label>
+      <label class="check"><input id="nums" type="checkbox" checked /> Show numbers</label>
+      <label class="check"><input id="show-grid" type="checkbox" /> Show 10-grid</label>
     </div>
     <div class="count" id="count"></div>
     <ul id="list"></ul>
@@ -218,7 +223,7 @@
     const IMG_W = 1020;
     const IMG_H = 891;
 
-    // [numero, latitude, longitude, nome, tempo, nota]
+    // [number, latitude, longitude, name, time, note]
     const RAW = [
       [1, 9.6, 87.1, "Flat Rock Pillar", "21:57", "Underwater"],
       [2, 13.5, 84.0, "Crystal Area", "19:10", "Underwater - Aprox"],
@@ -273,7 +278,7 @@
       [54, 70.3, 35.6, "Crack Downwards", "26:30", "Underwater - Aprox"],
       [55, 69.5, 24.5, "Left Waterfall", "10:40", "Land Beds Work"],
       [56, 63, 20.3, "Waterfall Pillar", "15:56", "Land Beds DO NOT Work"],
-      [58, 47.2, 17.1, "", "", "Outra entrada: 47.0, 17.4"],
+      [58, 47.2, 17.1, "", "", "Other entrance: 47.0, 17.4"],
       [59, 86.3, 16.9, "Matador/DSG rathole", "", ""],
       [60, 87.5, 34.7, "Redwoods (River)", "00:05", "Land Beds Work - Aprox"],
       [61, 9.5, 81.0, "Flat Platform Wall", "29:36", "Underwater"],
@@ -319,9 +324,56 @@
       return "plain";
     }
 
+    const CREWS = [
+      { owner: "DAB", co: "Bird", ids: [1, 19, 37, 55, 66] },
+      { owner: "ASTE", co: "B-E-N-O", ids: [2, 20, 38, 56] },
+      { owner: "B-E-N-O", co: "VolkaJoey", ids: [3, 39, 62, 58, 69] },
+      { owner: "Clutch", co: "Oli", ids: [4, 22, 40, 64, 70] },
+      { owner: "Daddy V9", co: "ASTE", ids: [5, 23, 41, 78] },
+      { owner: "Prin", co: "Rone", ids: [6, 24, 42, 60] },
+      { owner: "khacis", co: "sebuini", ids: [7, 25, 43, 61, 71] },
+      { owner: "VolkaJoey", co: "Howess", ids: [8, 26, 44, 12, 73] },
+      { owner: "Core", co: "Daddy V9", ids: [9, 27, 45, 13, 74] },
+      { owner: "lChupa", co: "DAB", ids: [10, 28, 46, 14, 76] },
+      { owner: "Oli", co: "Jointed", ids: [11, 29, 47, 15, 75] },
+      { owner: "Howess", co: "Prin", ids: [30, 16, 49, 77, 87] },
+      { owner: "Bird", co: "Clutch", ids: [31, 50, 17, 51, 68] },
+      { owner: "Clutch", co: "Gameron", ids: [32, 52, 18, 53, 79] },
+      { owner: "MisSy", co: "HODGE", ids: [33, 54, 34, 63, 80] },
+      { owner: "Spirit", co: "khacisn", ids: [65, 81, 82, 91] },
+      { owner: "HODGE", co: "MisSy", ids: [59, 83, 84, 85, 86] },
+      { owner: "djfish2", co: "Spirit", ids: [48, 88, 89, 90, 92] }
+    ];
+    const crewById = new Map();
+    for (const crew of CREWS) {
+      for (const id of crew.ids) crewById.set(id, crew);
+    }
+    const crew67 = {
+      "73.3,85.9": { owner: "ASTE", co: "B-E-N-O" },
+      "33.0,14.8": { owner: "Prin", co: "Rone" }
+    };
+
+    function crewOf(id, lat, lon) {
+      if (id === 67) return crew67[`${Number(lat).toFixed(1)},${Number(lon).toFixed(1)}`] || { owner: "", co: "" };
+      return crewById.get(id) || { owner: "", co: "" };
+    }
+
     const holes = RAW.map((row, index) => {
       const [id, lat, lon, name, time, note] = row;
-      return { key: index, id, lat, lon, name, time, note, kind: kindOf(name, note) };
+      const crew = crewOf(id, lat, lon);
+      return {
+        key: index,
+        id,
+        lat,
+        lon,
+        name,
+        time,
+        note,
+        kind: kindOf(name, note),
+        owner: crew.owner,
+        co: crew.co,
+        approx: note.toLowerCase().includes("aprox")
+      };
     });
 
     const stage = document.getElementById("stage");
@@ -386,9 +438,15 @@
       return bits.join(" · ");
     }
 
+    function whoText(hole) {
+      if (!hole.owner) return "";
+      return hole.co ? `${hole.owner} · co ${hole.co}` : hole.owner;
+    }
+
     function showTip(group, button) {
       tip.innerHTML = group.map((hole) =>
-        `<b>#${hole.id}${hole.name ? " " + hole.name : ""}</b><span>${holeText(hole)}</span>`
+        `<b>#${hole.id}${hole.name ? " " + hole.name : ""}</b><span>${holeText(hole)}</span>` +
+        (whoText(hole) ? `<span class="who">${whoText(hole)}</span>` : "")
       ).join("");
       tip.hidden = false;
       const pin = button.getBoundingClientRect();
@@ -418,16 +476,19 @@
     }
 
     let filterKind = "all";
+    let ownerFilter = "all";
     function visible(hole) {
       const q = document.getElementById("q").value.trim().toLowerCase();
       if (filterKind !== "all" && hole.kind !== filterKind) return false;
+      if (ownerFilter !== "all" && hole.owner !== ownerFilter) return false;
+      if (document.getElementById("approx").checked && !hole.approx) return false;
       if (!q) return true;
-      return `${hole.id} ${hole.name} ${hole.note}`.toLowerCase().includes(q);
+      return `${hole.id} ${hole.name} ${hole.note} ${hole.owner} ${hole.co}`.toLowerCase().includes(q);
     }
 
     function renderList() {
       const shown = holes.filter(visible);
-      count.textContent = `${shown.length} de ${holes.length} ratholes`;
+      count.textContent = `${shown.length} of ${holes.length} ratholes`;
       list.innerHTML = "";
       for (const hole of shown) {
         const li = document.createElement("li");
@@ -436,8 +497,9 @@
         button.dataset.key = String(hole.key);
         if (hole.key === selected) button.classList.add("on");
         button.innerHTML =
-          `<div class="row"><span class="id">${hole.id}</span><span class="name">${hole.name || "Sem nome"}</span></div>` +
-          `<div class="meta"><i class="swatch" style="background:var(--${hole.kind})"></i>${holeText(hole)}</div>`;
+          `<div class="row"><span class="id">${hole.id}</span><span class="name">${hole.name || "Unnamed"}</span></div>` +
+          `<div class="meta"><i class="swatch" style="background:var(--${hole.kind})"></i>${holeText(hole)}</div>` +
+          `<div class="meta">${whoText(hole)}</div>`;
         button.addEventListener("click", () => select(hole.key));
         li.appendChild(button);
         list.appendChild(li);
@@ -448,6 +510,20 @@
       }
     }
 
+    const ownerSelect = document.getElementById("owner");
+    const ownerNames = [...new Set(holes.map((hole) => hole.owner).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
+    for (const name of ownerNames) {
+      const option = document.createElement("option");
+      option.value = name;
+      option.textContent = name;
+      ownerSelect.appendChild(option);
+    }
+    ownerSelect.addEventListener("change", () => {
+      ownerFilter = ownerSelect.value;
+      renderList();
+    });
+    document.getElementById("approx").addEventListener("change", renderList);
     document.getElementById("q").addEventListener("input", renderList);
     document.getElementById("chips").addEventListener("click", (event) => {
       const button = event.target.closest("button");
