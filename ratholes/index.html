@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ratholes — The Center</title>
+<style>
+  :root {
+    --bg: #071018;
+    --panel: #0c1824;
+    --line: #1c3348;
+    --text: #e7f2f8;
+    --muted: #8eacbf;
+    --water: #3ec6ff;
+    --bed: #3ddc84;
+    --nobed: #ff5d5d;
+    --peli: #c084fc;
+    --plain: #ffc14d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: "Segoe UI", sans-serif; }
+  body { display: grid; grid-template-columns: minmax(0, 1fr) 360px; }
+  .map-panel {
+    min-width: 0;
+    min-height: 0;
+    position: relative;
+    container-type: size;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    overflow: hidden;
+  }
+  .stage {
+    position: relative;
+    width: min(100cqw, calc(100cqh * 1020 / 891));
+    max-width: 100%;
+    container-type: inline-size;
+  }
+  .stage img { width: 100%; height: auto; display: block; user-select: none; }
+  .overlay, .grid { position: absolute; inset: 0; }
+  .grid { pointer-events: none; }
+  .grid line { stroke: rgba(255, 255, 255, 0.28); stroke-width: 1; }
+  .pin {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    border: 0;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+    z-index: 2;
+  }
+  .pin .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid #fff;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.65);
+    display: block;
+  }
+  .pin .num {
+    position: absolute;
+    left: 11px;
+    top: -4px;
+    font-size: clamp(9px, 1.6cqw, 13px);
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 1px 2px #000, 0 0 3px #000;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .pin.water .dot { background: var(--water); }
+  .pin.bed .dot { background: var(--bed); }
+  .pin.nobed .dot { background: var(--nobed); }
+  .pin.peli .dot { background: var(--peli); }
+  .pin.plain .dot { background: var(--plain); }
+  .pin.dim { opacity: 0.18; }
+  .pin.on { z-index: 5; }
+  .pin.on .dot { transform: scale(1.45); box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.85); }
+  .hide-nums .num { display: none; }
+  .tip {
+    position: absolute;
+    z-index: 6;
+    max-width: 240px;
+    padding: 8px 10px;
+    background: rgba(6, 14, 22, 0.94);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    pointer-events: none;
+    font-size: 13px;
+    line-height: 1.35;
+  }
+  .tip b { display: block; }
+  .tip span { color: var(--muted); }
+  .readout {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 4;
+    background: rgba(6, 14, 22, 0.88);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 12px;
+    color: var(--muted);
+    width: max-content;
+  }
+  .side {
+    border-left: 1px solid var(--line);
+    background: var(--panel);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  header { padding: 16px 16px 10px; }
+  h1 { margin: 0; font-size: 18px; font-weight: 650; }
+  .sub { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
+  .tools { display: flex; flex-direction: column; gap: 8px; padding: 0 16px 10px; }
+  input[type="search"] {
+    width: 100%;
+    background: #08131c;
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font: inherit;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips button, .check {
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--muted);
+    border-radius: 999px;
+    padding: 4px 8px;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .chips button.on { color: #071018; border-color: transparent; }
+  .chips button[data-kind="all"].on { background: var(--text); }
+  .chips button[data-kind="water"].on { background: var(--water); }
+  .chips button[data-kind="bed"].on { background: var(--bed); }
+  .chips button[data-kind="nobed"].on { background: var(--nobed); }
+  .chips button[data-kind="peli"].on { background: var(--peli); }
+  .chips button[data-kind="plain"].on { background: var(--plain); }
+  .check { display: flex; align-items: center; gap: 6px; width: max-content; }
+  .check input { accent-color: var(--water); }
+  .count { color: var(--muted); font-size: 12px; padding: 0 16px 8px; }
+  ul { list-style: none; margin: 0; padding: 0 8px 16px; overflow: auto; }
+  li button {
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    color: inherit;
+    border: 0;
+    border-radius: 8px;
+    padding: 8px;
+    cursor: pointer;
+    font: inherit;
+  }
+  li button:hover, li button.on { background: #13283a; }
+  .row { display: flex; gap: 8px; align-items: baseline; }
+  .id { font-weight: 700; min-width: 28px; }
+  .name { flex: 1; }
+  .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .swatch { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 12px; padding: 0 16px 12px; color: var(--muted); font-size: 12px; }
+  @media (max-width: 900px) {
+    body { grid-template-columns: 1fr; grid-template-rows: minmax(320px, 62vh) auto; height: auto; }
+    .map-panel { height: 62vh; }
+    .side { border-left: 0; border-top: 1px solid var(--line); }
+    ul { max-height: 48vh; }
+  }
+</style>
+</head>
+<body>
+  <main class="map-panel">
+    <div class="readout" id="readout">Passe o mouse no mapa</div>
+    <div class="stage hide-nums" id="stage">
+      <img src="map.jpg" alt="Mapa The Center" id="map" draggable="false" />
+      <svg class="grid" id="grid" viewBox="0 0 1020 891" hidden></svg>
+      <div class="overlay" id="overlay"></div>
+    </div>
+  </main>
+  <aside class="side">
+    <header>
+      <h1>Ratholes — The Center</h1>
+      <p class="sub">O primeiro número é a longitude (eixo de cima). O segundo é a latitude (eixo da esquerda).</p>
+    </header>
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--water)"></i>Underwater</span>
+      <span><i class="swatch" style="background:var(--bed)"></i>Camas ok</span>
+      <span><i class="swatch" style="background:var(--nobed)"></i>Camas não</span>
+      <span><i class="swatch" style="background:var(--peli)"></i>Pelagornis</span>
+      <span><i class="swatch" style="background:var(--plain)"></i>Sem nota</span>
+    </div>
+    <div class="tools">
+      <input id="q" type="search" placeholder="Buscar número ou nome" />
+      <div class="chips" id="chips">
+        <button type="button" data-kind="all" class="on">Todos</button>
+        <button type="button" data-kind="water">Underwater</button>
+        <button type="button" data-kind="bed">Camas ok</button>
+        <button type="button" data-kind="nobed">Camas não</button>
+        <button type="button" data-kind="peli">Pelagornis</button>
+        <button type="button" data-kind="plain">Sem nota</button>
+      </div>
+      <label class="check"><input id="nums" type="checkbox" checked /> Mostrar números</label>
+      <label class="check"><input id="show-grid" type="checkbox" /> Mostrar grade de 10</label>
+    </div>
+    <div class="count" id="count"></div>
+    <ul id="list"></ul>
+  </aside>
+  <script>
+    const LON0 = 111.40277777777783;
+    const LON_SCALE = 9.044166666666666;
+    const LAT0 = 7.75;
+    const LAT_SCALE = 9.031666666666666;
+    const IMG_W = 1020;
+    const IMG_H = 891;
+
+    // [numero, longitude, latitude, nome, tempo, nota]
+    const RAW = [
+      [1, 9.6, 87.1, "Flat Rock Pillar", "21:57", "Underwater"],
+      [2, 13.5, 84.0, "Crystal Area", "19:10", "Underwater - Aprox"],
+      [3, 14.9, 85.8, "", "", ""],
+      [4, 12.7, 81.6, "Crystal Area", "19:10", "Underwater - Aprox"],
+      [5, 15.7, 80.8, "Top of the water montain, 2 entrances", "", ""],
+      [6, 18.1, 80.6, "", "", ""],
+      [7, 20.6, 79.3, "", "", ""],
+      [8, 20.9, 82, "", "", ""],
+      [9, 23.6, 77.7, "", "", ""],
+      [10, 25.4, 79.6, "Vacuum Crouch Spot", "28:38", ""],
+      [11, 27.1, 83.1, "Air Pocket Hole", "20:35", "Underwater"],
+      [12, 34.3, 88.9, "", "", ""],
+      [13, 41.4, 80.6, "Underwater Pillar", "32:21", "Pelagornis Special"],
+      [14, 39.3, 61, "Long Pillar", "31:01", "Pelagornis Special"],
+      [15, 34.8, 54.1, "Underworld Crack", "05:16", ""],
+      [16, 34.7, 50.7, "Underworld Pillar", "04:06", "Land Beds Work"],
+      [17, 30.7, 46.7, "Bridge Intake", "14:27", "Land Beds DO NOT Work"],
+      [18, 24.0, 53.7, "Crouch riverrock", "27:31", ""],
+      [19, 21.7, 58.3, "Lava Island Bushes", "17:24", "Land Beds DO NOT Work"],
+      [20, 18.6, 57.4, "", "", ""],
+      [22, 17, 63.7, "Lava Island Copy Rock", "16:20", "Land Beds DO NOT Work"],
+      [23, 13.5, 64.9, "Lava Dive Hole", "17:54", "Land Beds DO NOT Work"],
+      [24, 9, 57.1, "Lava Cave Ceiling", "12:43", "Land Beds DO NOT Work"],
+      [25, 7.3, 48.8, "Ocean Pillar", "12:10", "Land Beds DO NOT Work"],
+      [26, 16.5, 48.3, "", "", ""],
+      [27, 17.5, 26.6, "", "", ""],
+      [28, 19.1, 20.6, "", "", ""],
+      [29, 17.5, 19.1, "Green Obelisk Crack", "32:53", "Pelagornis Special"],
+      [30, 15.6, 15.3, "Ramp Bottom", "23:30", "Underwater - Aprox"],
+      [31, 26.4, 11.9, "Green Obelisk Cave", "04:25", "Land Beds Work"],
+      [32, 27.2, 5.9, "", "", ""],
+      [33, 30.2, 4.6, "", "", ""],
+      [34, 32.6, 3.7, "", "", ""],
+      [37, 36.6, 5.9, "", "", ""],
+      [38, 45.1, 4.2, "", "", ""],
+      [39, 50.5, 5.6, "Near Green Obelisk", "03:38", "Land Beds Work"],
+      [40, 47.5, 12.8, "", "", ""],
+      [41, 50.6, 14.4, "Green Obelisk Pond", "08:33", "Land Beds Work"],
+      [42, 47.9, 18.3, "Ramp Crack", "06:09", "Land Beds Work"],
+      [43, 46.4, 23.9, "", "", ""],
+      [44, 40.5, 25.8, "Waterfall Side", "01:50", "Land Beds Work"],
+      [45, 35.9, 30.7, "Under Floating Island", "00:58", "Land Beds Work"],
+      [46, 33.1, 29.7, "", "", ""],
+      [47, 41.1, 49.4, "Floating Island Pillar", "16:55", "Land Beds DO NOT Work"],
+      [48, 47.3, 51.3, "", "", ""],
+      [49, 64.6, 63.8, "Skill Island", "07:51", "Land Beds Work"],
+      [50, 68.9, 79.7, "Cave Corner", "21:12", "Underwater"],
+      [51, 75.4, 87.9, "Edge of Map Rocks", "13:21", "Land Beds DO NOT Work - Aprox"],
+      [52, 88.9, 80.0, "Twin Waterfalls", "09:44", "Land Beds DO NOT Work"],
+      [53, 71.5, 43.4, "Bridge Platform", "25:22", "Underwater"],
+      [54, 70.3, 35.6, "Crack Downwards", "26:30", "Underwater - Aprox"],
+      [55, 69.5, 24.5, "Left Waterfall", "10:40", "Land Beds Work"],
+      [56, 63, 20.3, "Waterfall Pillar", "15:56", "Land Beds DO NOT Work"],
+      [58, 47.2, 17.1, "", "", "Outra entrada: 47.0, 17.4"],
+      [59, 86.3, 16.9, "Matador/DSG rathole", "", ""],
+      [60, 87.5, 34.7, "Redwoods (River)", "00:05", "Land Beds Work - Aprox"],
+      [61, 9.5, 81.0, "Flat Platform Wall", "29:36", "Underwater"],
+      [62, 52.2, 48.9, "Stairs Roof", "30:08", ""],
+      [63, 37.1, 31.3, "Hanging Pillar", "01:33", ""],
+      [64, 52.9, 23.9, "SMT peli rathole", "", ""],
+      [65, 53.9, 24.6, "Aut Aus Raise 2 entrance", "", ""],
+      [66, 49.5, 4.8, "Side Map Crack", "", ""],
+      [67, 73.3, 85.9, "Redwoods Edge (Hatchframe)", "", ""],
+      [67, 33.0, 14.8, "Green Obelisk Waterfall (Lord Rathole)", "", ""],
+      [68, 52.3, 5.1, "Side Map (Big Cave)", "", ""],
+      [69, 17.3, 49.0, "Lava Island Pools", "", ""],
+      [70, 52.2, 48.9, "Stairs Roof", "", ""],
+      [71, 46.6, 17.7, "Green Obelisk Cliff (2 entrances)", "", ""],
+      [73, 87.3, 35.5, "Path Underway", "", ""],
+      [74, 47.3, 65.2, "Blue Obelisk Rock", "", ""],
+      [75, 37.7, 62.9, "River Pillar", "", ""],
+      [76, 48, 25.2, "Floating Island Pelagornis hole", "", ""],
+      [77, 70.3, 35.6, "Underwater hole in the wall", "25:47", ""],
+      [78, 14.7, 79.6, "Crouch entrance deepsea underwater", "", ""],
+      [79, 68.9, 79.7, "Underwater big cave", "", ""],
+      [80, 68.2, 84.4, "On top of crystal area at Brute art", "", ""],
+      [81, 18.9, 57.5, "Inside lavacave, top of the pillar", "", ""],
+      [82, 28.0, 82.9, "Underwater close bubble, 2 entrances", "", ""],
+      [83, 35, 75, "Tropical North Pillar", "", ""],
+      [84, 36.7, 14.4, "Green Ob Top", "", ""],
+      [85, 51.3, 74.7, "Blue Ob Top", "", ""],
+      [86, 12.2, 54.2, "Red Ob Top", "", ""],
+      [87, 65, 65, "Pillar close skull", "", ""],
+      [88, 23, 77, "", "", ""],
+      [89, 43.8, 86.6, "", "", ""],
+      [90, 60.2, 28.9, "Botton pillar copy rathole", "", ""],
+      [91, 42.1, 27.5, "Float island copy rathole", "", ""],
+      [92, 42.6, 27.9, "Wisp of Industry rathole at top of floating island", "", ""]
+    ];
+
+    function kindOf(name, note) {
+      const t = `${name} ${note}`.toLowerCase();
+      if (t.includes("do not work")) return "nobed";
+      if (t.includes("beds work")) return "bed";
+      if (t.includes("underwater") || t.includes("deepsea")) return "water";
+      if (t.includes("pelagornis") || t.includes("peli")) return "peli";
+      return "plain";
+    }
+
+    const holes = RAW.map((row, index) => {
+      const [id, x, y, name, time, note] = row;
+      return { key: index, id, x, y, name, time, note, kind: kindOf(name, note) };
+    });
+
+    const stage = document.getElementById("stage");
+    const overlay = document.getElementById("overlay");
+    const list = document.getElementById("list");
+    const count = document.getElementById("count");
+    const readout = document.getElementById("readout");
+    const map = document.getElementById("map");
+    const grid = document.getElementById("grid");
+
+    function percent(x, y) {
+      return {
+        left: ((LON0 + LON_SCALE * x) / IMG_W) * 100,
+        top: ((LAT0 + LAT_SCALE * y) / IMG_H) * 100
+      };
+    }
+
+    const groups = new Map();
+    for (const hole of holes) {
+      const key = `${hole.x.toFixed(1)},${hole.y.toFixed(1)}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(hole);
+    }
+
+    const tip = document.createElement("div");
+    tip.className = "tip";
+    tip.hidden = true;
+    overlay.appendChild(tip);
+
+    const pins = [];
+    for (const group of groups.values()) {
+      const { left, top } = percent(group[0].x, group[0].y);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `pin ${group[0].kind}`;
+      button.style.left = `${left}%`;
+      button.style.top = `${top}%`;
+      button.innerHTML = `<span class="dot"></span><span class="num">${group.map((h) => h.id).join(" · ")}</span>`;
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        select(group[0].key);
+      });
+      button.addEventListener("mouseenter", () => showTip(group, button));
+      button.addEventListener("mouseleave", () => { tip.hidden = true; });
+      overlay.appendChild(button);
+      pins.push({ group, button });
+    }
+
+    const gridParts = [];
+    for (let value = 0; value <= 100; value += 10) {
+      const x = LON0 + LON_SCALE * value;
+      const y = LAT0 + LAT_SCALE * value;
+      gridParts.push(`<line x1="${x}" y1="0" x2="${x}" y2="${IMG_H}"/>`);
+      gridParts.push(`<line x1="0" y1="${y}" x2="${IMG_W}" y2="${y}"/>`);
+    }
+    grid.innerHTML = gridParts.join("");
+
+    function holeText(hole) {
+      const bits = [`${hole.x}, ${hole.y}`];
+      if (hole.time) bits.push(hole.time);
+      if (hole.note) bits.push(hole.note);
+      return bits.join(" · ");
+    }
+
+    function showTip(group, button) {
+      tip.innerHTML = group.map((hole) =>
+        `<b>#${hole.id}${hole.name ? " " + hole.name : ""}</b><span>${holeText(hole)}</span>`
+      ).join("");
+      tip.hidden = false;
+      const pin = button.getBoundingClientRect();
+      const box = overlay.getBoundingClientRect();
+      let left = pin.left - box.left + 14;
+      let top = pin.top - box.top - tip.offsetHeight - 8;
+      if (top < 4) top = pin.bottom - box.top + 8;
+      if (left + tip.offsetWidth > box.width) left = box.width - tip.offsetWidth - 4;
+      tip.style.left = `${left}px`;
+      tip.style.top = `${top}px`;
+    }
+
+    let selected = null;
+    function select(key) {
+      selected = key;
+      const hole = holes.find((item) => item.key === key);
+      for (const { group, button } of pins) {
+        button.classList.toggle("on", group.some((item) => item.key === key));
+      }
+      for (const item of list.querySelectorAll("button")) {
+        item.classList.toggle("on", Number(item.dataset.key) === key);
+      }
+      const row = list.querySelector(`button[data-key="${key}"]`);
+      if (row) row.scrollIntoView({ block: "nearest" });
+      const pin = pins.find(({ group }) => group.some((item) => item.key === key));
+      if (pin && hole) showTip(pin.group, pin.button);
+    }
+
+    let filterKind = "all";
+    function visible(hole) {
+      const q = document.getElementById("q").value.trim().toLowerCase();
+      if (filterKind !== "all" && hole.kind !== filterKind) return false;
+      if (!q) return true;
+      return `${hole.id} ${hole.name} ${hole.note}`.toLowerCase().includes(q);
+    }
+
+    function renderList() {
+      const shown = holes.filter(visible);
+      count.textContent = `${shown.length} de ${holes.length} ratholes`;
+      list.innerHTML = "";
+      for (const hole of shown) {
+        const li = document.createElement("li");
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.key = String(hole.key);
+        if (hole.key === selected) button.classList.add("on");
+        button.innerHTML =
+          `<div class="row"><span class="id">${hole.id}</span><span class="name">${hole.name || "Sem nome"}</span></div>` +
+          `<div class="meta"><i class="swatch" style="background:var(--${hole.kind})"></i>${holeText(hole)}</div>`;
+        button.addEventListener("click", () => select(hole.key));
+        li.appendChild(button);
+        list.appendChild(li);
+      }
+      const shownKeys = new Set(shown.map((hole) => hole.key));
+      for (const { group, button } of pins) {
+        button.classList.toggle("dim", !group.some((hole) => shownKeys.has(hole.key)));
+      }
+    }
+
+    document.getElementById("q").addEventListener("input", renderList);
+    document.getElementById("chips").addEventListener("click", (event) => {
+      const button = event.target.closest("button");
+      if (!button) return;
+      filterKind = button.dataset.kind;
+      for (const chip of document.querySelectorAll("#chips button")) chip.classList.toggle("on", chip === button);
+      renderList();
+    });
+    document.getElementById("nums").addEventListener("change", (event) => {
+      stage.classList.toggle("hide-nums", !event.target.checked);
+    });
+    stage.classList.remove("hide-nums");
+    document.getElementById("show-grid").addEventListener("change", (event) => {
+      grid.hidden = !event.target.checked;
+    });
+
+    map.addEventListener("mousemove", (event) => {
+      const rect = map.getBoundingClientRect();
+      const px = ((event.clientX - rect.left) / rect.width) * IMG_W;
+      const py = ((event.clientY - rect.top) / rect.height) * IMG_H;
+      const lon = (px - LON0) / LON_SCALE;
+      const lat = (py - LAT0) / LAT_SCALE;
+      readout.textContent = `Lon ${lon.toFixed(1)} · Lat ${lat.toFixed(1)}`;
+    });
+    overlay.addEventListener("click", () => { tip.hidden = true; });
+
+    renderList();
+  </script>
+</body>
+</html>
