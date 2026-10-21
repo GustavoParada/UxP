@@ -185,7 +185,7 @@
   <aside class="side">
     <header>
       <h1>Ratholes — The Center</h1>
-      <p class="sub">O primeiro número é a longitude (eixo de cima). O segundo é a latitude (eixo da esquerda).</p>
+      <p class="sub">O primeiro número é a latitude (eixo da esquerda). O segundo é a longitude (eixo de cima).</p>
     </header>
     <div class="legend">
       <span><i class="swatch" style="background:var(--water)"></i>Underwater</span>
@@ -218,7 +218,7 @@
     const IMG_W = 1020;
     const IMG_H = 891;
 
-    // [numero, longitude, latitude, nome, tempo, nota]
+    // [numero, latitude, longitude, nome, tempo, nota]
     const RAW = [
       [1, 9.6, 87.1, "Flat Rock Pillar", "21:57", "Underwater"],
       [2, 13.5, 84.0, "Crystal Area", "19:10", "Underwater - Aprox"],
@@ -320,8 +320,8 @@
     }
 
     const holes = RAW.map((row, index) => {
-      const [id, x, y, name, time, note] = row;
-      return { key: index, id, x, y, name, time, note, kind: kindOf(name, note) };
+      const [id, lat, lon, name, time, note] = row;
+      return { key: index, id, lat, lon, name, time, note, kind: kindOf(name, note) };
     });
 
     const stage = document.getElementById("stage");
@@ -332,16 +332,16 @@
     const map = document.getElementById("map");
     const grid = document.getElementById("grid");
 
-    function percent(x, y) {
+    function percent(lat, lon) {
       return {
-        left: ((LON0 + LON_SCALE * x) / IMG_W) * 100,
-        top: ((LAT0 + LAT_SCALE * y) / IMG_H) * 100
+        left: ((LON0 + LON_SCALE * lon) / IMG_W) * 100,
+        top: ((LAT0 + LAT_SCALE * lat) / IMG_H) * 100
       };
     }
 
     const groups = new Map();
     for (const hole of holes) {
-      const key = `${hole.x.toFixed(1)},${hole.y.toFixed(1)}`;
+      const key = `${hole.lat.toFixed(1)},${hole.lon.toFixed(1)}`;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(hole);
     }
@@ -353,7 +353,7 @@
 
     const pins = [];
     for (const group of groups.values()) {
-      const { left, top } = percent(group[0].x, group[0].y);
+      const { left, top } = percent(group[0].lat, group[0].lon);
       const button = document.createElement("button");
       button.type = "button";
       button.className = `pin ${group[0].kind}`;
@@ -380,7 +380,7 @@
     grid.innerHTML = gridParts.join("");
 
     function holeText(hole) {
-      const bits = [`${hole.x}, ${hole.y}`];
+      const bits = [`${hole.lat}, ${hole.lon}`];
       if (hole.time) bits.push(hole.time);
       if (hole.note) bits.push(hole.note);
       return bits.join(" · ");
@@ -470,7 +470,7 @@
       const py = ((event.clientY - rect.top) / rect.height) * IMG_H;
       const lon = (px - LON0) / LON_SCALE;
       const lat = (py - LAT0) / LAT_SCALE;
-      readout.textContent = `Lon ${lon.toFixed(1)} · Lat ${lat.toFixed(1)}`;
+      readout.textContent = `Lat ${lat.toFixed(1)} · Lon ${lon.toFixed(1)}`;
     });
     overlay.addEventListener("click", () => { tip.hidden = true; });
 
